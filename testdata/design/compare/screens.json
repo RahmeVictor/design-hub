@@ -1,0 +1,17 @@
+{
+  "title": "Fixture — Design ↔ Implementation",
+  "tokens": ["/prototype/tokens/colors.css"],
+  "parity": "PARITY.md",
+  "devices": {
+    "desktop": { "width": 800, "height": 600 },
+    "phone": { "width": 430, "height": 900 }
+  },
+  "surfaces": {
+    "web": { "label": "Web", "run": "make dev" },
+    "brand": { "label": "Brand", "run": "design-only" }
+  },
+  "screens": [
+    { "surface": "web", "screen": "home", "device": "desktop", "designUrl": "/prototype/index.html", "implUrl": "", "designNav": "landing", "implNav": "" },
+    { "surface": "brand", "screen": "logo", "device": "phone", "designUrl": "/prototype/index.html", "implUrl": "" }
+  ]
+}

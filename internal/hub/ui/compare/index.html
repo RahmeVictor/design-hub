@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Design ↔ Implementation</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { display: flex; font-family: var(--font-sans, system-ui); background: var(--neutral-100, #f4f2ef); color: var(--text-body, #333); }
+
+  /* Sidebar */
+  aside { width: 270px; flex-shrink: 0; height: 100vh; overflow-y: auto; background: var(--surface-card, #fff); border-right: 1px solid var(--border-subtle, #e5e1da); padding: 18px 14px 30px; }
+  aside h1 { font-size: 15px; font-weight: 800; letter-spacing: -0.01em; color: var(--text-strong, #111); margin: 4px 6px 2px; }
+  aside .sub { font-size: 11.5px; color: var(--text-muted, #777); margin: 0 6px 14px; line-height: 1.45; }
+  aside .sub a { color: var(--text-brand, #7a2ee8); font-weight: 700; text-decoration: none; }
+  .group { margin-top: 14px; }
+  .group > b { display: block; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-subtle, #999); padding: 0 6px 6px; }
+  .group .run { font-size: 10px; color: var(--text-subtle, #999); padding: 0 6px 6px; word-break: break-all; display: none; }
+  .group.open .run { display: block; }
+  .scr { display: block; width: 100%; text-align: left; border: 0; background: none; font: inherit; font-size: 13px; font-weight: 600; color: var(--text-body, #333); padding: 7px 10px; border-radius: 10px; cursor: pointer; }
+  .scr:hover { background: var(--neutral-100, #f4f2ef); }
+  .scr.on { background: var(--brand-subtle, #f0e7ff); color: var(--purple-700, #6a1fd0); }
+
+  /* Main */
+  main { flex: 1; display: flex; flex-direction: column; min-width: 0; height: 100vh; }
+  header { display: flex; align-items: center; gap: 12px; padding: 10px 18px; background: var(--surface-card, #fff); border-bottom: 1px solid var(--border-subtle, #e5e1da); flex-wrap: wrap; }
+  header h2 { font-size: 15px; font-weight: 800; margin: 0; color: var(--text-strong, #111); }
+  header .nav-note { font-size: 12px; color: var(--text-muted, #777); flex: 1; min-width: 0; }
+  header .nav-note b { color: var(--text-body, #333); }
+  header button, header a.btn { border: 1px solid var(--border-default, #d8d3ca); background: var(--surface-card, #fff); color: var(--text-body, #333); font: inherit; font-size: 12.5px; font-weight: 700; padding: 6px 13px; border-radius: 999px; cursor: pointer; text-decoration: none; white-space: nowrap; }
+  header button:hover, header a.btn:hover { border-color: var(--purple-300, #c9a9f8); color: var(--purple-700, #6a1fd0); }
+
+  .seg { display: inline-flex; border: 1px solid var(--border-default, #d8d3ca); border-radius: 999px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; }
+  .seg button.on { background: var(--brand-subtle, #f0e7ff); color: var(--purple-700, #6a1fd0); }
+
+  .ovctl { display: none; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted, #777); }
+  body.overlay .ovctl { display: inline-flex; }
+  .ovctl input[type="range"] { width: 130px; accent-color: var(--mov-purple, #9044fc); }
+  .ovctl label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; white-space: nowrap; font-weight: 600; }
+
+  .panes { flex: 1; display: flex; gap: 14px; padding: 14px; min-height: 0; }
+  body.overlay .panes { display: none; }
+  .pane { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .pane .cap, .ovwrap .cap { display: flex; align-items: baseline; gap: 8px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-subtle, #999); padding: 0 2px 7px; }
+  .cap .url { font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--text-muted, #777); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+  .pane.design .cap b, .cap b.design { color: var(--text-brand, #7a2ee8); }
+  .stage { flex: 1; position: relative; background: var(--surface-card, #fff); border: 1px solid var(--border-subtle, #e5e1da); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-xs, 0 1px 2px rgba(0,0,0,.05)); }
+  .stage iframe { position: absolute; top: 0; left: 50%; border: 0; background: #fff; transform-origin: top center; }
+  .stage .miss { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 13px; color: var(--text-muted, #777); padding: 30px; }
+
+  .ovwrap { flex: 1; display: none; flex-direction: column; min-width: 0; padding: 14px; min-height: 0; }
+  body.overlay .ovwrap { display: flex; }
+  .ovwrap .stage iframe.top { z-index: 2; }
+</style>
+</head>
+<body>
+  <aside id="side"></aside>
+  <main>
+    <header>
+      <h2 id="title">—</h2>
+      <span class="nav-note" id="navnote"></span>
+      <span class="seg">
+        <button id="modeSide">Side by side</button>
+        <button id="modeOverlay">Overlay</button>
+      </span>
+      <span class="ovctl">
+        <span>impl</span>
+        <input type="range" id="opacity" min="0" max="100" step="1" title="top-frame opacity (arrow keys nudge)" />
+        <span id="opacityVal"></span>
+        <button id="swap" title="swap which frame is on top">Swap</button>
+        <label><input type="checkbox" id="blend" /> Difference</label>
+      </span>
+      <button id="reload">Reload both</button>
+      <a class="btn" id="popout" target="_blank" rel="noopener">Open in tabs ↗</a>
+    </header>
+    <div class="panes">
+      <div class="pane design">
+        <div class="cap"><b>Design</b><span class="url" id="urlL"></span></div>
+        <div class="stage" id="stageL"></div>
+      </div>
+      <div class="pane impl">
+        <div class="cap"><b>Implementation</b><span class="url" id="urlR"></span></div>
+        <div class="stage" id="stageR"></div>
+      </div>
+    </div>
+    <div class="ovwrap">
+      <div class="cap"><b class="design">Design</b><span class="url" id="urlOL"></span><b id="topLabel">Implementation</b><span class="url" id="urlOR"></span></div>
+      <div class="stage" id="stageO"></div>
+    </div>
+  </main>
+
+<script>
+(async () => {
+  const m = await (await fetch('./screens.json')).json();
+  const side = document.getElementById('side');
+  const $ = (id) => document.getElementById(id);
+  let current = null;
+
+  // Per-project theming comes from the manifest, not from this page.
+  if (m.title) document.title = m.title;
+  for (const href of m.tokens || []) {
+    const l = document.createElement('link');
+    l.rel = 'stylesheet';
+    l.href = href;
+    document.head.appendChild(l);
+  }
+  if (m.favicon) {
+    const l = document.createElement('link');
+    l.rel = 'icon';
+    l.href = m.favicon;
+    document.head.appendChild(l);
+  }
+
+  const state = {
+    mode: localStorage.getItem('designhub.mode') === 'overlay' ? 'overlay' : 'side',
+    opacity: +(localStorage.getItem('designhub.opacity') ?? 50),
+    swapped: false,
+    blend: false,
+  };
+
+  const parity = m.parity ? ` Parity status: <a href="./${m.parity}">${m.parity}</a>` : '';
+  side.innerHTML = `<h1>${m.title || 'Design ↔ Implementation'}</h1>
+    <p class="sub">Pick a screen; follow the “tap …” note inside each frame — the
+    design side has no deep links. In Overlay, the top frame gets the clicks.${parity}</p>`;
+
+  const bySurface = {};
+  m.screens.forEach((s, i) => { (bySurface[s.surface] ||= []).push([s, i]); });
+
+  for (const [key, rows] of Object.entries(bySurface)) {
+    const g = document.createElement('div');
+    g.className = 'group';
+    const meta = (m.surfaces || {})[key] || { label: key };
+    g.innerHTML = `<b>${meta.label}</b>` + (meta.run && meta.run !== 'design-only' ? `<span class="run">${meta.run}</span>` : '');
+    for (const [s, i] of rows) {
+      const b = document.createElement('button');
+      b.className = 'scr';
+      b.textContent = s.screen;
+      b.dataset.i = i;
+      b.onclick = () => show(i);
+      g.appendChild(b);
+    }
+    side.appendChild(g);
+  }
+
+  function frame(stage, url, device, cls) {
+    if (!url) {
+      const d = document.createElement('div');
+      d.className = 'miss';
+      d.textContent = 'No browser-viewable implementation for this deliverable — see the note above.';
+      stage.appendChild(d);
+      return null;
+    }
+    const f = document.createElement('iframe');
+    f.width = device.width; f.height = device.height;
+    if (cls) f.className = cls;
+    f.src = url;
+    stage.appendChild(f);
+    fit(stage, f, device);
+    return f;
+  }
+
+  function fit(stage, f, device) {
+    const pad = 10;
+    const s = Math.min(1, (stage.clientWidth - pad) / device.width, (stage.clientHeight - pad) / device.height);
+    f.style.transform = `translateX(-50%) scale(${s})`;
+  }
+
+  function applyOverlayStyle() {
+    const top = document.querySelector('#stageO iframe.top');
+    if (!top) return;
+    top.style.opacity = state.blend ? 1 : state.opacity / 100;
+    top.style.mixBlendMode = state.blend ? 'difference' : 'normal';
+    $('opacity').value = state.opacity;
+    $('opacityVal').textContent = state.blend ? 'diff' : `${state.opacity}%`;
+  }
+
+  function show(i) {
+    current = i;
+    const s = m.screens[i];
+    const device = m.devices[s.device] || Object.values(m.devices)[0];
+    document.querySelectorAll('.scr').forEach((b) => b.classList.toggle('on', +b.dataset.i === i));
+    document.querySelectorAll('.group').forEach((g) => g.classList.toggle('open', g.querySelector('.scr.on') != null));
+    $('title').textContent = s.screen;
+    const notes = [];
+    if (s.designNav) notes.push(`design: <b>${s.designNav}</b>`);
+    if (s.implNav) notes.push(`impl: <b>${s.implNav}</b>`);
+    $('navnote').innerHTML = notes.join(' · ');
+
+    document.body.classList.toggle('overlay', state.mode === 'overlay');
+    $('modeSide').classList.toggle('on', state.mode === 'side');
+    $('modeOverlay').classList.toggle('on', state.mode === 'overlay');
+
+    for (const id of ['stageL', 'stageR', 'stageO']) $(id).innerHTML = '';
+
+    if (state.mode === 'side') {
+      $('urlL').textContent = decodeURIComponent(s.designUrl);
+      $('urlR').textContent = s.implUrl || '—';
+      frame($('stageL'), s.designUrl, device);
+      frame($('stageR'), s.implUrl, device);
+    } else {
+      // Overlay: both frames in one stage, top one translucent (or blended).
+      const bottomUrl = state.swapped ? s.implUrl : s.designUrl;
+      const topUrl = state.swapped ? s.designUrl : s.implUrl;
+      $('urlOL').textContent = decodeURIComponent(s.designUrl);
+      $('urlOR').textContent = s.implUrl || '—';
+      $('topLabel').textContent = (state.swapped ? 'Design' : 'Implementation') + ' (top)';
+      if (!topUrl || !bottomUrl) {
+        frame($('stageO'), s.designUrl || s.implUrl, device);
+      } else {
+        frame($('stageO'), bottomUrl, device);
+        frame($('stageO'), topUrl, device, 'top');
+        applyOverlayStyle();
+      }
+    }
+
+    $('popout').onclick = (e) => {
+      e.preventDefault();
+      window.open(s.designUrl, 'hub-design');
+      if (s.implUrl) window.open(s.implUrl, 'hub-impl');
+    };
+    history.replaceState({}, '', `#${s.surface}/${encodeURIComponent(s.screen)}`);
+  }
+
+  function setMode(mode) {
+    state.mode = mode;
+    localStorage.setItem('designhub.mode', mode);
+    if (current != null) show(current);
+  }
+  $('modeSide').onclick = () => setMode('side');
+  $('modeOverlay').onclick = () => setMode('overlay');
+  $('swap').onclick = () => { state.swapped = !state.swapped; if (current != null) show(current); };
+  $('blend').onchange = (e) => { state.blend = e.target.checked; applyOverlayStyle(); };
+  $('opacity').oninput = (e) => {
+    state.opacity = +e.target.value;
+    localStorage.setItem('designhub.opacity', state.opacity);
+    applyOverlayStyle();
+  };
+  addEventListener('keydown', (e) => {
+    if (state.mode !== 'overlay' || e.target.tagName === 'INPUT') return;
+    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    state.opacity = Math.max(0, Math.min(100, state.opacity + (e.key === 'ArrowRight' ? 5 : -5)));
+    localStorage.setItem('designhub.opacity', state.opacity);
+    applyOverlayStyle();
+  });
+
+  $('reload').onclick = () => current != null && show(current);
+  addEventListener('resize', () => {
+    if (current == null) return;
+    const s = m.screens[current];
+    const device = m.devices[s.device] || Object.values(m.devices)[0];
+    document.querySelectorAll('.stage iframe').forEach((f) => fit(f.parentElement, f, device));
+  });
+
+  const hash = decodeURIComponent(location.hash.slice(1));
+  const start = m.screens.findIndex((s) => `${s.surface}/${s.screen}` === hash);
+  show(start >= 0 ? start : 0);
+})();
+</script>
+</body>
+</html>
