@@ -18,7 +18,7 @@ Dev-only tooling: never deployed, no auth, binds localhost by default.
 No install needed — run it pinned from any repo that has a design dir:
 
 ```
-go run github.com/RahmeVictor/design-hub/cmd/designhub@v0.1.0 -dir design
+go run github.com/RahmeVictor/design-hub/cmd/designhub@v0.2.0 -dir design
 ```
 
 Then open <http://localhost:4400/compare/>. A fresh tag can take a few minutes
@@ -100,6 +100,13 @@ machine-readable `report.json` (`scorePercent` per screen). The diff image is
 the design dimmed to grayscale with mismatching pixels in magenta; a
 per-channel tolerance (default 16/255) absorbs anti-aliasing noise.
 
+The mismatch is also clustered into **hot-spot regions** — the biggest areas
+of difference, ranked by how much of the total mismatch each holds. They are
+outlined in orange on the diff image, listed in the console output and the
+gallery (`450x140 @ (90,340) 93%`), and included per screen in `report.json`
+as `regions: [{x, y, w, h, mismatchedPixels, sharePercent}]` (top 5, clusters
+under 1% of the mismatch dropped).
+
 Known limits, inherited from the harness model: design pages have no deep
 links, so design shots capture landing states only; implementation URLs render
 their login screen unless a session was seeded. Treat scores as advisory —
@@ -125,7 +132,7 @@ MOV's `backend/internal/middleware/security.go`.)
 Semver tags (`v0.1.0`, …). Pin the tag in your Makefile:
 
 ```make
-DESIGN_HUB_VERSION ?= v0.1.0
+DESIGN_HUB_VERSION ?= v0.2.0
 design-hub:
 	go run github.com/RahmeVictor/design-hub/cmd/designhub@$(DESIGN_HUB_VERSION) -dir design
 ```

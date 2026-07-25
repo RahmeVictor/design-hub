@@ -29,15 +29,16 @@ type ShotsOptions struct {
 
 // ShotReport is one row of report.json.
 type ShotReport struct {
-	Surface           string   `json:"surface"`
-	Screen            string   `json:"screen"`
-	Slug              string   `json:"slug"`
-	Design            string   `json:"design,omitempty"`
-	Impl              string   `json:"impl,omitempty"`
-	Diff              string   `json:"diff,omitempty"`
-	ScorePercent      *float64 `json:"scorePercent,omitempty"`
-	DimensionMismatch bool     `json:"dimensionMismatch,omitempty"`
-	Errors            []string `json:"errors,omitempty"`
+	Surface           string       `json:"surface"`
+	Screen            string       `json:"screen"`
+	Slug              string       `json:"slug"`
+	Design            string       `json:"design,omitempty"`
+	Impl              string       `json:"impl,omitempty"`
+	Diff              string       `json:"diff,omitempty"`
+	ScorePercent      *float64     `json:"scorePercent,omitempty"`
+	DimensionMismatch bool         `json:"dimensionMismatch,omitempty"`
+	Regions           []DiffRegion `json:"regions,omitempty"`
+	Errors            []string     `json:"errors,omitempty"`
 }
 
 var chromeCandidates = []string{
@@ -157,7 +158,11 @@ func Shots(w io.Writer, opts ShotsOptions) int {
 				r.ScorePercent = &pct
 				r.Diff = filepath.Base(diffFile)
 				r.DimensionMismatch = res.DimensionMismatch
+				r.Regions = res.Regions
 				fmt.Fprintf(w, "  = %.2f%% mismatch%s\n", pct, mismatchNote(res))
+				if hs := regionsLine(res.Regions); hs != "" {
+					fmt.Fprintf(w, "    hot spots: %s\n", hs)
+				}
 				if opts.MaxDiff > 0 && pct > opts.MaxDiff {
 					failed = true
 				}
@@ -190,6 +195,16 @@ func mismatchNote(res DiffResult) string {
 		return " (dimension mismatch — compared the intersection)"
 	}
 	return ""
+}
+
+// regionsLine renders the ranked hot-spot regions ("240x80 @ (12,60) 61%; …"),
+// matching the orange boxes drawn on the diff image.
+func regionsLine(regions []DiffRegion) string {
+	parts := make([]string, len(regions))
+	for i, r := range regions {
+		parts[i] = fmt.Sprintf("%dx%d @ (%d,%d) %.0f%%", r.W, r.H, r.X, r.Y, r.SharePercent)
+	}
+	return strings.Join(parts, "; ")
 }
 
 func screenshot(chrome, url, out string, d Device) error {
@@ -225,7 +240,8 @@ func writeGallery(out, title string, reports []ShotReport) error {
 .trio{display:flex;gap:12px}.trio figure{margin:0;flex:1;min-width:0}.trio img{width:100%;border:1px solid #ddd;border-radius:10px;background:#fff}
 figcaption{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:5px}
 .score{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:2px 10px;margin-left:8px;background:#e7f5e7;color:#1c7c1c}
-.score.bad{background:#fde8e8;color:#c62828}.err{font-size:12px;color:#c62828}</style>
+.score.bad{background:#fde8e8;color:#c62828}.err{font-size:12px;color:#c62828}
+.regions{font-size:12px;color:#8a5a00;margin:6px 0 0}</style>
 `)
 	fmt.Fprintf(&b, "<h1 style='font-size:19px'>%s</h1>\n", html.EscapeString(title))
 	for _, r := range reports {
@@ -249,6 +265,9 @@ figcaption{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.06
 		cell("implementation", r.Impl)
 		cell("diff", r.Diff)
 		b.WriteString("</div>\n")
+		if hs := regionsLine(r.Regions); hs != "" {
+			fmt.Fprintf(&b, "<p class='regions'>hot spots (boxed in the diff): %s</p>\n", html.EscapeString(hs))
+		}
 		for _, e := range r.Errors {
 			fmt.Fprintf(&b, "<p class='err'>%s</p>\n", html.EscapeString(e))
 		}
